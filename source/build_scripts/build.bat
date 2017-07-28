@@ -21,9 +21,16 @@ set SDL_MsbuildParams=/nologo /verbosity:quiet ^
 	/p:PlatformToolset=%PlatformToolset%;Configuration=Debug;Platform=x64;useenv=true;OutDir=%cd%\build\ ^
 	/p:AdditionalIncludePaths=$(UniversalCRT_IncludePath)
 
+set BGFX_MsbuildParams=/nologo /verbosity:quiet ^
+	/p:PlatformToolset=%PlatformToolset%;Configuration=Debug;Platform=x64;useenv=true;OutDir=%cd%\build\ ^
+	/p:AdditionalIncludePaths=$(UniversalCRT_IncludePath)
+echo %BGFX_MsbuildParams%
+
 if not exist .\build\SDL2.dll (
     echo [INFO] Building SDL2...
-    xcopy .\source\3rdparty\SDL2 .\build\SDL2 /h /y /s /i /q
+    if not exist .\build\SDL2 (
+        xcopy .\source\3rdparty\SDL2 .\build\SDL2 /h /y /s /i /q
+    )
 
     msbuild .\build\SDL2\VisualC\SDL\SDL.vcxproj %SDL_MsbuildParams%
     if ERRORLEVEL 1 (
@@ -33,6 +40,33 @@ if not exist .\build\SDL2.dll (
     msbuild .\build\SDL2\VisualC\SDLmain\SDLmain.vcxproj %SDL_MsbuildParams%
     if ERRORLEVEL 1 (
         echo [ERROR] SDL Main build failed!
+        exit /b 1
+    )
+)
+
+if not exist .\build\bgfx.dll (
+    echo [INFO] Building bgfx...
+    if not exist .\build\bgfx (
+        xcopy .\source\3rdparty\bgfx .\build\bgfx /h /y /s /i /q
+    )
+    if not exist .\build\bx (
+        xcopy .\source\3rdparty\bx .\build\bx /h /y /s /i /q
+    )
+    if not exist .\build\bimg (
+        xcopy .\source\3rdparty\bimg .\build\bimg /h /y /s /i /q
+    )
+
+    pushd .\build\bgfx
+    ..\bx\tools\bin\windows\genie --with-shared-lib vs2015
+    popd
+
+    REM kinda hacky, but helps me to rename the bloody dll...
+    powershell -Command "(gc .\build\bgfx\.build\projects\vs2015\bgfx-shared-lib.vcxproj -encoding ascii) -replace 'bgfx-shared-libDebug', 'bgfx' | Out-File .\build\bgfx\.build\projects\vs2015\bgfx-shared-lib.vcxproj -encoding ascii"
+    powershell -Command "(gc .\build\bgfx\.build\projects\vs2015\bgfx-shared-lib.vcxproj -encoding ascii) -replace 'bgfx-shared-libRelease', 'bgfx' | Out-File .\build\bgfx\.build\projects\vs2015\bgfx-shared-lib.vcxproj -encoding ascii"
+
+    msbuild .\build\bgfx\.build\projects\vs2015\bgfx-shared-lib.vcxproj %BGFX_MsbuildParams%
+    if ERRORLEVEL 1 (
+        echo [ERROR] BGFX build failed!
         exit /b 1
     )
 )
