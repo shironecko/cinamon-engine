@@ -15,7 +15,6 @@ set CommonClOptions=/nologo /W4 /wd4204 /wd4100 /wd4152 /wd4201 ^
     /Od /Oi /Zi /MTd /Fe.\build\ /Fd.\build\ /Fo.\build\ /DPT_DEV_BUILD /DGL_RIGOROUS_CHECKS ^
     /I %CD%\source /I %CD%\source\3rdparty /I %CD%\source\3rdparty\SDL2\include ^
     /I %CD%\source\3rdparty\bgfx\include /I %CD%\source\3rdparty\bx\include /I %CD%\source\3rdparty\bimg\include
-REM /I "C:\Program Files (x86)\Windows Kits\10\Include\10.0.10240.0\ucrt"
 
 set SDL_MsbuildParams=/nologo /verbosity:quiet ^
 	/p:PlatformToolset=%PlatformToolset%;Configuration=Debug;Platform=x64;useenv=true;OutDir=%cd%\build\ ^
@@ -24,7 +23,6 @@ set SDL_MsbuildParams=/nologo /verbosity:quiet ^
 set BGFX_MsbuildParams=/nologo /verbosity:quiet ^
 	/p:PlatformToolset=%PlatformToolset%;Configuration=Debug;Platform=x64;useenv=true;OutDir=%cd%\build\ ^
 	/p:AdditionalIncludePaths=$(UniversalCRT_IncludePath)
-echo %BGFX_MsbuildParams%
 
 if not exist .\build\SDL2.dll (
     echo [INFO] Building SDL2...
