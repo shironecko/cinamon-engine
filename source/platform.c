@@ -24,28 +24,6 @@
 #define platform_alloc(size, base_address) malloc(size)
 #endif
 
-LOCAL s32 load_gl_functions(gl_functions *data) {
-#if SDL_VIDEO_DRIVER_UIKIT || SDL_VIDEO_DRIVER_ANDROID || SDL_VIDEO_DRIVER_PANDORA
-#define __SDL_NOGETPROCADDR__
-#endif
-
-#if defined __SDL_NOGETPROCADDR__
-#define gl_function(ret, func, params) data->func = func;
-#else
-#define gl_function(ret, func, params)                                                             \
-	do {                                                                                           \
-		data->func = SDL_GL_GetProcAddress(#func);                                                 \
-		if (!data->func) {                                                                         \
-			return SDL_SetError("Couldn't load GL function %s: %s\n", #func, SDL_GetError());      \
-		}                                                                                          \
-	} while (0);
-#endif /* __SDL_NOGETPROCADDR__ */
-
-#include "gl_functions.h"
-#undef gl_function
-	return 0;
-}
-
 LOCAL void load_bgfx_api(bgfx_api *bgfx, const char* path) {
     SDL_assert(bgfx);
     bgfx->bgfx_lib = SDL_LoadObject(path);
@@ -183,7 +161,7 @@ LOCAL void load_bgfx_api(bgfx_api *bgfx, const char* path) {
 }
 
 typedef struct {
-	b32 (*engine_update)(engine_data *data, gl_functions gl, float delta_time);
+	b32 (*engine_update)(engine_data *data, float delta_time);
     void (*engine_hotload)(engine_data *data);
     void (*engine_hotunload)(engine_data *data);
 
@@ -278,18 +256,9 @@ int main(int argc, char **argv) {
 	SDL_Init(SDL_INIT_VIDEO | SDL_INIT_TIMER | SDL_INIT_EVENTS);
 	engine_data.window =
 	    SDL_CreateWindow("demo window", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, 800, 600,
-	                     SDL_WINDOW_OPENGL | SDL_WINDOW_RESIZABLE);
-
-	SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
-	SDL_GL_SetSwapInterval(0);
-	SDL_GLContext context = SDL_GL_CreateContext(engine_data.window);
-	SDL_GL_MakeCurrent(engine_data.window, context);
+	                     SDL_WINDOW_RESIZABLE);
 
     load_bgfx_api(&engine_data.bgfx, "..\\build\\bgfx.dll");
-
-	gl_functions gl_functions;
-	s32 context_load_res = load_gl_functions(&gl_functions);
-	SDL_assert(context_load_res >= 0);
 
 	engine_lib_info engine_lib = {0};
 	b32 continueRunning = true;
@@ -317,7 +286,7 @@ int main(int argc, char **argv) {
 		    engine_data.mouse.lmb = mouse_buttons & SDL_BUTTON(SDL_BUTTON_LEFT);
 		    engine_data.mouse.rmb = mouse_buttons & SDL_BUTTON(SDL_BUTTON_RIGHT);
 
-		    continueRunning = engine_lib.engine_update(&engine_data, gl_functions, delta_time);
+		    continueRunning = engine_lib.engine_update(&engine_data, delta_time);
         }
 
 	} while (continueRunning);

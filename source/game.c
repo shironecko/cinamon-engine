@@ -20,7 +20,6 @@ typedef struct {
     //****************BASICS****************//
     b32 initialized;
     mem_pool pool;
-    struct nk_context ui_context;
 
     //****************GAME****************//
     character protagonist;
@@ -32,7 +31,7 @@ game_state* get_game_state(engine_data *data)
     return (game_state*)data->memory;
 }
 
-void game_initialize(engine_data *data, gl_functions gl, struct nk_context *ui_context, u32 reserved_memory_size) {
+void game_initialize(engine_data *data, u32 reserved_memory_size) {
     game_state *state = get_game_state(data);
     state->pool = new_mem_pool(
         (u8*)data->memory + reserved_memory_size,
@@ -61,7 +60,7 @@ void game_initialize(engine_data *data, gl_functions gl, struct nk_context *ui_c
     }
 }
 
-b32 game_update(engine_data *data, gl_functions gl, struct nk_context *ui_context, float delta_time) {
+b32 game_update(engine_data *data, float delta_time) {
     if (data->kb[SDL_SCANCODE_ESCAPE])
         return false;
 
@@ -69,7 +68,7 @@ b32 game_update(engine_data *data, gl_functions gl, struct nk_context *ui_contex
     const u32 reserved_memory_size = 8 * Mb;
     cn_assert(sizeof(*state) < reserved_memory_size);
     if (!state->initialized) {
-        game_initialize(data, gl, ui_context, reserved_memory_size);
+        game_initialize(data, reserved_memory_size);
         state->initialized = true;
     }
 
