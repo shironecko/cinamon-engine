@@ -5,8 +5,6 @@
 #include <platform.h>
 #include <engine.h>
 
-#include <bgfx/c99/bgfx.h>
-
 #if defined(__WINDOWS__)
 #define PT_ENGINE_DYNAMIC
 #endif
@@ -29,6 +27,7 @@ LOCAL void load_bgfx_api(bgfx_api *bgfx, const char* path) {
     bgfx->bgfx_lib = SDL_LoadObject(path);
     SDL_assert(bgfx->bgfx_lib);
 
+    bgfx->set_platform_data = SDL_LoadFunction(bgfx->bgfx_lib, "bgfx_set_platform_data"); SDL_assert(bgfx->set_platform_data);
     bgfx->vertex_decl_begin = SDL_LoadFunction(bgfx->bgfx_lib, "bgfx_vertex_decl_begin"); SDL_assert(bgfx->vertex_decl_begin);
     bgfx->vertex_decl_add = SDL_LoadFunction(bgfx->bgfx_lib, "bgfx_vertex_decl_add"); SDL_assert(bgfx->vertex_decl_add);
     bgfx->vertex_decl_skip = SDL_LoadFunction(bgfx->bgfx_lib, "bgfx_vertex_decl_skip"); SDL_assert(bgfx->vertex_decl_skip);

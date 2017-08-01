@@ -1,6 +1,7 @@
 #define _CRT_SECURE_NO_WARNINGS
 
 #include <SDL.h>
+#include <SDL_syswm.h>
 
 /* ---STB lib--- */
 #define STB_DEFINE
@@ -50,11 +51,11 @@ typedef struct {
     u32 frames_tracked;
 } engine_state;
 
-engine_state* get_engine_state(engine_data* data) {
+LOCAL engine_state* get_engine_state(engine_data* data) {
     return (engine_state *)data->memory;
 }
 
-engine_data game_data_from_engine_data(engine_data* engine_d) {
+LOCAL engine_data game_data_from_engine_data(engine_data* engine_d) {
     engine_data game_d = *engine_d;
     engine_state *state = get_engine_state(engine_d);
     game_d.memory = state->game_memory;
@@ -62,10 +63,43 @@ engine_data game_data_from_engine_data(engine_data* engine_d) {
     return game_d;
 }
 
+LOCAL bool bgfx_sdl_set_window(bgfx_api *bgfx, SDL_Window* _window)
+{
+    SDL_SysWMinfo wmi;
+    SDL_VERSION(&wmi.version);
+    if (!SDL_GetWindowWMInfo(_window, &wmi))
+    {
+        return false;
+    }
+
+    // TODO: clean this up using SDL platform field instead of these defines
+    bgfx_platform_data_t pd;
+#	if BX_PLATFORM_LINUX || BX_PLATFORM_BSD
+    pd.ndt          = wmi.info.x11.display;
+    pd.nwh          = (void*)(uintptr_t)wmi.info.x11.window;
+#	elif BX_PLATFORM_OSX
+    pd.ndt          = NULL;
+    pd.nwh          = wmi.info.cocoa.window;
+#	elif BX_PLATFORM_WINDOWS
+    pd.ndt          = NULL;
+    pd.nwh          = wmi.info.win.window;
+#	elif BX_PLATFORM_STEAMLINK
+    pd.ndt          = wmi.info.vivante.display;
+    pd.nwh          = wmi.info.vivante.window;
+#	endif // BX_PLATFORM_
+    pd.context      = NULL;
+    pd.backBuffer   = NULL;
+    pd.backBufferDS = NULL;
+    bgfx->set_platform_data(&pd);
+
+    return true;
+}
+
 GLOBAL engine_state* g_engine_state;
 
 b32 engine_update(engine_data *data, float delta_time) {
     engine_state *state = get_engine_state(data);
+    bgfx_api *bgfx = &data->bgfx;
     g_engine_state = state;
     if (!state->initialized) {
         SDL_Log("Initializing game state...");
@@ -79,6 +113,11 @@ b32 engine_update(engine_data *data, float delta_time) {
         state->game_memory = (u8*)data->memory  + sizeof(*state) + engine_scratch_pool_size;
         state->game_memory_size = data->memory_size - sizeof(*state) - engine_scratch_pool_size;
 
+        bgfx_sdl_set_window(bgfx, data->window);
+        b32 bgfx_init_result = bgfx->init(BGFX_RENDERER_TYPE_COUNT, BGFX_PCI_ID_NONE, 0, NULL, NULL);
+        cn_assert(bgfx_init_result);
+        bgfx->set_debug(BGFX_DEBUG_TEXT);
+
         engine_hotload(data);
     }
 
@@ -88,6 +127,8 @@ b32 engine_update(engine_data *data, float delta_time) {
         stb_snprintf(buff, 1024, "res change from(%d, %d), to(%d, %d)", state->window_w,
             state->window_h, data->window_w, data->window_h);
         SDL_Log("%s", buff);
+
+        bgfx->reset(data->window_w, state->window_h, BGFX_RESET_VSYNC);
 
         float ref_aspect = (float)REF_H / (float)REF_W;
         float actual_aspect = (float)data->window_h / (float)data->window_w;
@@ -137,11 +178,28 @@ b32 engine_update(engine_data *data, float delta_time) {
             state->frames_tracked = 0;
         }
 
-        // update the game
+        bgfx->set_view_clear(0, BGFX_CLEAR_COLOR | BGFX_CLEAR_DEPTH, 0x303030ff, 1.0f, 0);
+        bgfx->set_view_rect(0, 0, 0, (uint16_t)state->window_w, (uint16_t)state->window_h);
+        bgfx->touch(0);
+
+        bgfx->dbg_text_clear(0, false);
+        /*bgfx_dbg_text_image(
+            uint16_max((uint16_t)width /2/8, 20)-20
+            , uint16_max((uint16_t)height/2/16, 6)-6
+            , 40
+            , 12
+            , s_logo
+            , 160
+        );*/
+        bgfx->dbg_text_printf(0, 1, 0x4f, "integrating bgfx rendering library");
+        bgfx->dbg_text_printf(0, 2, 0x6f, "If you see this text, Alex Spark, then the plan of Vitalii the Magnificent has come to life!");
+
         engine_data game_d = game_data_from_engine_data(data);
         if (!game_update(&game_d, delta_time)) {
             return false;
         }
+
+        bgfx->frame(false);
     }
 
     return true;
@@ -154,5 +212,5 @@ void engine_hotload(engine_data *data) {
 
 void engine_hotunload(engine_data *data) {
     engine_data game_d = game_data_from_engine_data(data);
-    game_hotload(&game_d);
+    game_hotunload(&game_d);
 }
