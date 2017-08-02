@@ -32,17 +32,19 @@ typedef struct {
 GLOBAL mem_pool *g_scratch_pool;
 GLOBAL bgfx_api *g_bgfx;
 
-LOCAL game_state* get_game_state(engine_data *data)
+LOCAL game_state* get_game_state(game_data *data)
 {
     return (game_state*)data->memory;
 }
 
 LOCAL bgfx_shader_handle_t load_shader(const char* path)
 {
-    mem_pool pool = *g_scratch_pool;
-    void *shader = load_file_p(path, &pool);
+    u64 file_size = get_file_size(path);
+    const bgfx_memory_t* mem = g_bgfx->alloc((u32)file_size + 1);
+    load_file(path, mem->data, file_size);
+    ((u8*)mem->data)[file_size] = 0;
 
-    return g_bgfx->create_shader(shader);
+    return g_bgfx->create_shader(mem);
 }
 
 LOCAL bgfx_program_handle_t load_program(const char* vs_path, const char* fs_path)
@@ -53,11 +55,18 @@ LOCAL bgfx_program_handle_t load_program(const char* vs_path, const char* fs_pat
     return g_bgfx->create_program(vsh, fsh, true);
 }
 
-void game_initialize(engine_data *data, u32 reserved_memory_size) {
+void game_reset_globals(game_data *data) {
+    game_state *state = get_game_state(data);
+    g_scratch_pool = &state->pool;
+    g_bgfx = data->bgfx;
+}
+
+void game_initialize(game_data *data, u32 reserved_memory_size) {
     game_state *state = get_game_state(data);
     state->pool = new_mem_pool(
         (u8*)data->memory + reserved_memory_size,
         data->memory_size - reserved_memory_size);
+    game_reset_globals(data);
 
     state->test_program = load_program("./assets/shaders/vs_test.bin", "./assets/shaders/fs_test.bin");
     cn_assert(state->test_program.idx != UINT16_MAX);
@@ -85,7 +94,7 @@ void game_initialize(engine_data *data, u32 reserved_memory_size) {
     }
 }
 
-b32 game_update(engine_data *data, float delta_time) {
+b32 game_update(game_data *data, float delta_time) {
     if (data->kb[SDL_SCANCODE_ESCAPE])
         return false;
 
@@ -109,11 +118,9 @@ b32 game_update(engine_data *data, float delta_time) {
     return true;
 }
 
-void game_hotload(engine_data *data) {
-    game_state *state = get_game_state(data);
-    g_scratch_pool = &state->pool;
-    g_bgfx = &data->bgfx;
+void game_hotload(game_data *data) {
+    game_reset_globals(data);
 }
 
-void game_hotunload(engine_data *data) {
+void game_hotunload(game_data *data) {
 }

@@ -32,6 +32,7 @@
 #define REF_W 1280
 #define REF_H 720
 
+#include "game.h"
 #include "game.c"
 
 typedef struct {
@@ -41,26 +42,21 @@ typedef struct {
     s32 window_w;
     s32 window_h;
 
-    mem_pool pool;
-
-    u8 *game_memory;
-    u32 game_memory_size;
+    mem_pool global_pool;
+    mem_pool scratch_pool;
 
     float accumulated_dt;
     float average_dt;
     u32 frames_tracked;
+
+    bgfx_callback_interface_t bgfx_callback_i;
+    bgfx_callback_vtbl_t bgfx_callback_vt;
+
+    game_data game_data;
 } engine_state;
 
 LOCAL engine_state* get_engine_state(engine_data* data) {
     return (engine_state *)data->memory;
-}
-
-LOCAL engine_data game_data_from_engine_data(engine_data* engine_d) {
-    engine_data game_d = *engine_d;
-    engine_state *state = get_engine_state(engine_d);
-    game_d.memory = state->game_memory;
-    game_d.memory_size = state->game_memory_size;
-    return game_d;
 }
 
 LOCAL bool bgfx_sdl_set_window(bgfx_api *bgfx, SDL_Window* _window)
@@ -95,6 +91,45 @@ LOCAL bool bgfx_sdl_set_window(bgfx_api *bgfx, SDL_Window* _window)
     return true;
 }
 
+// BGFX callback API
+void bgfx_callback_fatal(bgfx_callback_interface_t* _this, bgfx_fatal_t _code, const char* _str) {
+    char buff[1024];
+    stb_snprintf(buff, arr_len(buff), "[BGFX FATAL] %s", _str);
+    SDL_Log(buff);
+    cn_assert(false);
+}
+
+void bgfx_callback_trace_vargs(bgfx_callback_interface_t* _this, const char* _filePath, uint16_t _line, const char* _format, va_list _argList) {
+    char buff[1024];
+    vsnprintf(buff, arr_len(buff), _format, _argList);
+    char buff1[2048];
+    stb_snprintf(buff1, arr_len(buff1), "[BGFX TRACE] %s (%d): %s", _filePath, _line, buff);
+    SDL_Log(buff1);
+}
+
+uint32_t bgfx_callback_cache_read_size(bgfx_callback_interface_t* _this, uint64_t _id) {
+    return 0;
+}
+
+bool bgfx_callback_cache_read(bgfx_callback_interface_t* _this, uint64_t _id, void* _data, uint32_t _size) {
+    return false;
+}
+
+void bgfx_callback_cache_write(bgfx_callback_interface_t* _this, uint64_t _id, const void* _data, uint32_t _size) {
+}
+
+void bgfx_callback_screen_shot(bgfx_callback_interface_t* _this, const char* _filePath, uint32_t _width, uint32_t _height, uint32_t _pitch, const void* _data, uint32_t _size, bool _yflip) {
+}
+
+void bgfx_callback_capture_begin(bgfx_callback_interface_t* _this, uint32_t _width, uint32_t _height, uint32_t _pitch, bgfx_texture_format_t _format, bool _yflip) {
+}
+
+void bgfx_callback_capture_end(bgfx_callback_interface_t* _this) {
+}
+
+void bgfx_callback_capture_frame(bgfx_callback_interface_t* _this, const void* _data, uint32_t _size) {
+}
+
 GLOBAL engine_state* g_engine_state;
 
 b32 engine_update(engine_data *data, float delta_time) {
@@ -108,13 +143,28 @@ b32 engine_update(engine_data *data, float delta_time) {
         SDL_SetWindowSize(data->window, REF_W, REF_H);
 
         u32 engine_scratch_pool_size = 10 * Mb;
-        state->pool =
-            new_mem_pool((u8*)data->memory + sizeof(*state), engine_scratch_pool_size);
-        state->game_memory = (u8*)data->memory  + sizeof(*state) + engine_scratch_pool_size;
-        state->game_memory_size = data->memory_size - sizeof(*state) - engine_scratch_pool_size;
+        state->global_pool = new_mem_pool((u8*)data->memory + sizeof(*state), data->memory_size - sizeof(*state));
+        state->scratch_pool = new_mem_pool(mem_push(&state->global_pool, engine_scratch_pool_size), engine_scratch_pool_size);
+
+        game_data *gd = &state->game_data;
+        gd->bgfx = bgfx;
+        gd->window = data->window;
+        gd->memory_size = state->global_pool.hi - state->global_pool.low;
+        gd->memory = mem_push(&state->global_pool, gd->memory_size);
 
         bgfx_sdl_set_window(bgfx, data->window);
-        b32 bgfx_init_result = bgfx->init(BGFX_RENDERER_TYPE_COUNT, BGFX_PCI_ID_NONE, 0, NULL, NULL);
+
+        state->bgfx_callback_vt.fatal = bgfx_callback_fatal;
+        state->bgfx_callback_vt.trace_vargs = bgfx_callback_trace_vargs;
+        state->bgfx_callback_vt.cache_read_size = bgfx_callback_cache_read_size;
+        state->bgfx_callback_vt.cache_read = bgfx_callback_cache_read;
+        state->bgfx_callback_vt.cache_write = bgfx_callback_cache_write;
+        state->bgfx_callback_vt.screen_shot = bgfx_callback_screen_shot;
+        state->bgfx_callback_vt.capture_begin = bgfx_callback_capture_begin;
+        state->bgfx_callback_vt.capture_end = bgfx_callback_capture_end;
+        state->bgfx_callback_vt.capture_frame = bgfx_callback_capture_frame;
+        state->bgfx_callback_i.vtbl = &state->bgfx_callback_vt;
+        b32 bgfx_init_result = bgfx->init(BGFX_RENDERER_TYPE_COUNT, BGFX_PCI_ID_NONE, 0, &state->bgfx_callback_i, NULL);
         cn_assert(bgfx_init_result);
         bgfx->set_debug(BGFX_DEBUG_TEXT);
 
@@ -186,8 +236,12 @@ b32 engine_update(engine_data *data, float delta_time) {
         bgfx->dbg_text_printf(0, 1, 0x4f, "%dx%d", state->window_w, state->window_h);
         bgfx->dbg_text_printf(0, 2, 0x6f, "%0.2fms", state->average_dt * 1000);
 
-        engine_data game_d = game_data_from_engine_data(data);
-        if (!game_update(&game_d, delta_time)) {
+        game_data *gd = &state->game_data;
+        gd->kb = data->kb;
+        gd->mouse = data->mouse;
+        gd->window_w = data->window_w;
+        gd->window_h = data->window_h;
+        if (!game_update(gd, delta_time)) {
             return false;
         }
 
@@ -198,11 +252,11 @@ b32 engine_update(engine_data *data, float delta_time) {
 }
 
 void engine_hotload(engine_data *data) {
-    engine_data game_d = game_data_from_engine_data(data);
-    game_hotload(&game_d);
+    engine_state *state = get_engine_state(data);
+    game_hotload(&state->game_data);
 }
 
 void engine_hotunload(engine_data *data) {
-    engine_data game_d = game_data_from_engine_data(data);
-    game_hotunload(&game_d);
+    engine_state *state = get_engine_state(data);
+    game_hotunload(&state->game_data);
 }

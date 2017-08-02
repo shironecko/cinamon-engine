@@ -143,7 +143,7 @@ typedef struct {
 
 typedef struct {
     void *memory;
-    u32 memory_size;
+    u64 memory_size;
 
     const u8 *kb;
     mouse_info mouse;
