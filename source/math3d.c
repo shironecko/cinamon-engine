@@ -287,9 +287,6 @@ MATH_INLINE_FN mat4 roty_m4(float angle) {
 }
 
 MATH_FN mat4 lookat_cam(vec3 eye, vec3 target, vec3 up) {
-	// note: do I really need this assert?
-	/* MATH_ASSERT(abs(len_v3(up) - 1.0f) < 0.0001f); */
-
 	vec3 zaxis = norm_v3(sub_v3(eye, target));
 	vec3 xaxis = norm_v3(cross(up, zaxis));
 	vec3 yaxis = cross(zaxis, xaxis);
@@ -327,6 +324,30 @@ MATH_FN mat4 fps_cam(vec3 eye, float yaw, float pitch) {
 	              -dot_v3(yaxis, eye),
 	              -dot_v3(zaxis, eye),
 	              1};
+}
+
+MATH_FN mat4 orthogonal(float _left, float _right, float _bottom, float _top, float _near, float _far, float _offset, bool _oglNdc)
+{
+    mat4 result = {0};
+    const float aa = 2.0f/(_right - _left);
+    const float bb = 2.0f/(_top - _bottom);
+    const float cc = (_oglNdc ? 2.0f : 1.0f) / (_far - _near);
+    const float dd = (_left + _right)/(_left   - _right);
+    const float ee = (_top  + _bottom)/(_bottom - _top);
+    const float ff = _oglNdc
+        ? (_near + _far)/(_near - _far)
+        :  _near        /(_near - _far)
+        ;
+
+    result.e[0] = aa;
+    result.e[5] = bb;
+    result.e[10] = cc;
+    result.e[12] = dd + _offset;
+    result.e[13] = ee;
+    result.e[14] = ff;
+    result.e[15] = 1.0f;
+
+    return result;
 }
 
 MATH_FN mat4 projection(float vfov, float aspect, float clip_near, float clip_far) {

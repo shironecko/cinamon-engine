@@ -2,10 +2,6 @@
 
 //******************** Config ********************//
 
-#ifndef UT_ASSERT
-#define UT_ASSERT SDL_assert
-#endif // #ifndef UT_ASSERT
-
 #ifndef UT_INLINE
 #define UT_INLINE inline
 #endif // #ifndef UT_INLINE
@@ -32,7 +28,7 @@ UT_INLINE_FN mem_pool new_mem_pool(void *memory, u64 size) {
 
 UT_INLINE_FN void *mem_push(mem_pool *pool, u64 size) {
 	u8 *new_low = pool->low + size;
-	UT_ASSERT(new_low <= pool->hi);
+	cn_assert(new_low <= pool->hi);
 	void *result = pool->low;
 	pool->low = new_low;
 
@@ -41,10 +37,39 @@ UT_INLINE_FN void *mem_push(mem_pool *pool, u64 size) {
 
 UT_INLINE_FN void *mem_push_back(mem_pool *pool, u64 size) {
 	u8 *new_hi = pool->hi - size;
-	UT_ASSERT(new_hi >= pool->low);
+	cn_assert(new_hi >= pool->low);
 	pool->hi = new_hi;
 
 	return new_hi;
+}
+
+UT_FN u64 load_file(const char* path, void* memory, u64 bytes_to_load) {
+    u64 nbytes_read = 0;
+    SDL_RWops *file = SDL_RWFromFile(path, "rb");
+    if (file)
+    {
+        nbytes_read = SDL_RWread(file, memory, 1, bytes_to_load);
+        SDL_RWclose(file);
+    }
+
+    return nbytes_read;
+}
+
+UT_FN u64 get_file_size(const char* path) {
+    SDL_RWops *file = SDL_RWFromFile(path, "rb");
+    u64 size = SDL_RWsize(file);
+    SDL_RWclose(file);
+
+    return size;
+}
+
+UT_FN void* load_file_p(const char *path, mem_pool *pool) {
+    cn_assert(path && pool);
+    u64 file_size = get_file_size(path);
+    void *file_data = mem_push(pool, file_size);
+    load_file(path, file_data, file_size);
+
+    return file_data;
 }
 
 #define DEFINE_MAX(fn_name, type)                                                                  \

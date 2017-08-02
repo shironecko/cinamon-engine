@@ -21,14 +21,36 @@ typedef struct {
     b32 initialized;
     mem_pool pool;
 
+    //****************RENDER****************//
+    bgfx_program_handle_t test_program;
+
     //****************GAME****************//
     character protagonist;
     tile game_map[16 * 16];
 } game_state;
 
-game_state* get_game_state(engine_data *data)
+GLOBAL mem_pool *g_scratch_pool;
+GLOBAL bgfx_api *g_bgfx;
+
+LOCAL game_state* get_game_state(engine_data *data)
 {
     return (game_state*)data->memory;
+}
+
+LOCAL bgfx_shader_handle_t load_shader(const char* path)
+{
+    mem_pool pool = *g_scratch_pool;
+    void *shader = load_file_p(path, &pool);
+
+    return g_bgfx->create_shader(shader);
+}
+
+LOCAL bgfx_program_handle_t load_program(const char* vs_path, const char* fs_path)
+{
+    bgfx_shader_handle_t vsh = load_shader(vs_path);
+    bgfx_shader_handle_t fsh = load_shader(fs_path);
+
+    return g_bgfx->create_program(vsh, fsh, true);
 }
 
 void game_initialize(engine_data *data, u32 reserved_memory_size) {
@@ -36,6 +58,9 @@ void game_initialize(engine_data *data, u32 reserved_memory_size) {
     state->pool = new_mem_pool(
         (u8*)data->memory + reserved_memory_size,
         data->memory_size - reserved_memory_size);
+
+    state->test_program = load_program("./assets/shaders/vs_test.bin", "./assets/shaders/fs_test.bin");
+    cn_assert(state->test_program.idx != UINT16_MAX);
 
     state->protagonist.pos = (position){ 8, 8 };
     char *map =
@@ -72,6 +97,10 @@ b32 game_update(engine_data *data, float delta_time) {
         state->initialized = true;
     }
 
+    mat4 cam = lookat_cam((vec3) { 0, 0, -1.0f }, (vec3) { 0, 0, 0.0f }, (vec3) { 0, 1.0f, 0 });
+    mat4 ortho = orthogonal(0.5f, data->window_w  + 0.5f, data->window_h + 0.5f, 0.5f, 0.0f, 100.0f, 0.0f, false);
+    g_bgfx->set_view_transform(0, &cam, &ortho);
+
     for (u32 y = 0; y < 16; y++) {
         for (u32 x = 0; x < 16; x++) {
         }
@@ -81,6 +110,9 @@ b32 game_update(engine_data *data, float delta_time) {
 }
 
 void game_hotload(engine_data *data) {
+    game_state *state = get_game_state(data);
+    g_scratch_pool = &state->pool;
+    g_bgfx = &data->bgfx;
 }
 
 void game_hotunload(engine_data *data) {

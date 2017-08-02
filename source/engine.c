@@ -124,7 +124,7 @@ b32 engine_update(engine_data *data, float delta_time) {
     // WINDOW RESIZE HANDLING
     if (state->window_w != data->window_w || state->window_h != data->window_h) {
         char buff[1024];
-        stb_snprintf(buff, 1024, "res change from(%d, %d), to(%d, %d)", state->window_w,
+        stb_snprintf(buff, arr_len(buff), "res change from(%d, %d), to(%d, %d)", state->window_w,
             state->window_h, data->window_w, data->window_h);
         SDL_Log("%s", buff);
 
@@ -168,6 +168,10 @@ b32 engine_update(engine_data *data, float delta_time) {
     }
 
     {
+        bgfx->set_view_clear(0, BGFX_CLEAR_COLOR | BGFX_CLEAR_DEPTH, 0x303030ff, 1.0f, 0);
+        bgfx->set_view_rect(0, 0, 0, (uint16_t)state->window_w, (uint16_t)state->window_h);
+        bgfx->touch(0);
+
         // perf stats
         state->accumulated_dt += delta_time;
         ++state->frames_tracked;
@@ -178,21 +182,9 @@ b32 engine_update(engine_data *data, float delta_time) {
             state->frames_tracked = 0;
         }
 
-        bgfx->set_view_clear(0, BGFX_CLEAR_COLOR | BGFX_CLEAR_DEPTH, 0x303030ff, 1.0f, 0);
-        bgfx->set_view_rect(0, 0, 0, (uint16_t)state->window_w, (uint16_t)state->window_h);
-        bgfx->touch(0);
-
         bgfx->dbg_text_clear(0, false);
-        /*bgfx_dbg_text_image(
-            uint16_max((uint16_t)width /2/8, 20)-20
-            , uint16_max((uint16_t)height/2/16, 6)-6
-            , 40
-            , 12
-            , s_logo
-            , 160
-        );*/
-        bgfx->dbg_text_printf(0, 1, 0x4f, "integrating bgfx rendering library");
-        bgfx->dbg_text_printf(0, 2, 0x6f, "If you see this text, Alex Spark, then the plan of Vitalii the Magnificent has come to life!");
+        bgfx->dbg_text_printf(0, 1, 0x4f, "%dx%d", state->window_w, state->window_h);
+        bgfx->dbg_text_printf(0, 2, 0x6f, "%0.2fms", state->average_dt * 1000);
 
         engine_data game_d = game_data_from_engine_data(data);
         if (!game_update(&game_d, delta_time)) {
