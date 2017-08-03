@@ -23,6 +23,7 @@ typedef struct {
 
     //****************RENDER****************//
     bgfx_program_handle_t test_program;
+    bgfx_vertex_decl_t test_vertex_decl;
 
     //****************GAME****************//
     character protagonist;
@@ -68,6 +69,11 @@ void game_initialize(game_data *data, u32 reserved_memory_size) {
         data->memory_size - reserved_memory_size);
     game_reset_globals(data);
 
+    g_bgfx->vertex_decl_begin(&state->test_vertex_decl, BGFX_RENDERER_TYPE_NOOP);
+    g_bgfx->vertex_decl_add(&state->test_vertex_decl, BGFX_ATTRIB_POSITION, 3, BGFX_ATTRIB_TYPE_FLOAT, false, false);
+    g_bgfx->vertex_decl_add(&state->test_vertex_decl, BGFX_ATTRIB_COLOR0, 4, BGFX_ATTRIB_TYPE_UINT8, true, false);
+    g_bgfx->vertex_decl_end(&state->test_vertex_decl);
+
     state->test_program = load_program("./assets/shaders/vs_test.bin", "./assets/shaders/fs_test.bin");
     cn_assert(state->test_program.idx != UINT16_MAX);
 
@@ -94,6 +100,17 @@ void game_initialize(game_data *data, u32 reserved_memory_size) {
     }
 }
 
+typedef struct {
+    vec3 position;
+    union {
+        struct {
+            u8 a, r, g, b;
+        };
+
+        u32 argb;
+    };
+} test_vertex;
+
 b32 game_update(game_data *data, float delta_time) {
     if (data->kb[SDL_SCANCODE_ESCAPE])
         return false;
@@ -106,14 +123,72 @@ b32 game_update(game_data *data, float delta_time) {
         state->initialized = true;
     }
 
-    mat4 cam = lookat_cam((vec3) { 0, 0, -1.0f }, (vec3) { 0, 0, 0.0f }, (vec3) { 0, 1.0f, 0 });
+    mat4 cam = lookat_cam((vec3) { 0, 0, -1.0f }, (vec3) { -0.2f, 0.3f, 0.1f }, (vec3) { 0, 1.0f, 0 });
     mat4 ortho = orthogonal(0.5f, data->window_w  + 0.5f, data->window_h + 0.5f, 0.5f, 0.0f, 100.0f, 0.0f, false);
     g_bgfx->set_view_transform(0, &cam, &ortho);
+    {
+        //float ref_aspect = (float)REF_H / (float)REF_W;
+        //float actual_aspect = (float)data->window_h / (float)data->window_w;
+        //float scale;
+        //if (ref_aspect > actual_aspect)
+        //    scale = (float)data->window_h / (float)REF_H;
+        //else
+        //    scale = (float)data->window_w / (float)REF_W;
+
+        //float hw = data->window_w * 0.5f;
+        //float hh = data->window_h * 0.5f;
+
+        //float scale_x = 1.0f / hw * scale;
+        //float scale_y = -1.0f / hh * scale;
+        //float shift_x = (data->window_w - REF_W * scale) / data->window_w - 1.0f;
+        //float shift_y = 1.0f - (data->window_h - REF_H * scale) / data->window_h;
+
+        //const float mvp[] ={ scale_x, 0, 0, 0, 0,       scale_y, 0, 0,
+        //    0,       0, 1, 0, shift_x, shift_y, 0, 1 };
+        //const float identity[] = {
+        //    1.0f, 0, 0, 0,
+        //    0, 1.0f, 0, 0,
+        //    0, 0, 1.0f, 0,
+        //    0, 0, 0, 1.0f
+        //};
+
+        //g_bgfx->set_view_transform(0, identity, mvp);
+    }
+
+    bgfx_transient_vertex_buffer_t vertex_buff = {0};
+    g_bgfx->alloc_transient_vertex_buffer(&vertex_buff, 256, &state->test_vertex_decl);
+    bgfx_transient_index_buffer_t index_buff = {0};
+    g_bgfx->alloc_transient_index_buffer(&index_buff, 256);
+
+    test_vertex *vertex = (test_vertex*)vertex_buff.data;
+    vertex[0].position = (vec3) { -1.0f, -1.0f, 0 };
+    vertex[1].position = (vec3) { 1.0f, -1.0f, 0 };
+    vertex[2].position = (vec3) { 1.0f, 1.0f, 0 };
+    vertex[3].position = (vec3) { -1.0f, 1.0f, 0 };
+    vertex[0].argb = 0xFFFF0000;
+    vertex[1].argb = 0xFF00FF00;
+    vertex[2].argb = 0xFF0000FF;
+    vertex[3].argb = 0xFFFF00FF;
+
+    u32 *index = (u32*)index_buff.data;
+    index[0] = 0;
+    index[1] = 1;
+    index[2] = 2;
+    index[3] = 1;
+    index[4] = 3;
+    index[5] = 2;
+
+    g_bgfx->set_transient_vertex_buffer(0, &vertex_buff, 0, 4);
+    g_bgfx->set_transient_index_buffer(&index_buff, 0, 6);
+
+    g_bgfx->submit(0, state->test_program, 0, false);
 
     for (u32 y = 0; y < 16; y++) {
         for (u32 x = 0; x < 16; x++) {
         }
     }
+
+    g_bgfx->frame(false);
 
     return true;
 }

@@ -96,7 +96,7 @@ void bgfx_callback_fatal(bgfx_callback_interface_t* _this, bgfx_fatal_t _code, c
     char buff[1024];
     stb_snprintf(buff, arr_len(buff), "[BGFX FATAL] %s", _str);
     SDL_Log(buff);
-    cn_assert(false);
+    cn_assert(!"BGFX FATAL");
 }
 
 void bgfx_callback_trace_vargs(bgfx_callback_interface_t* _this, const char* _filePath, uint16_t _line, const char* _format, va_list _argList) {
@@ -164,7 +164,7 @@ b32 engine_update(engine_data *data, float delta_time) {
         state->bgfx_callback_vt.capture_end = bgfx_callback_capture_end;
         state->bgfx_callback_vt.capture_frame = bgfx_callback_capture_frame;
         state->bgfx_callback_i.vtbl = &state->bgfx_callback_vt;
-        b32 bgfx_init_result = bgfx->init(BGFX_RENDERER_TYPE_COUNT, BGFX_PCI_ID_NONE, 0, &state->bgfx_callback_i, NULL);
+        b32 bgfx_init_result = bgfx->init(BGFX_RENDERER_TYPE_DIRECT3D9, BGFX_PCI_ID_NONE, 0, &state->bgfx_callback_i, NULL);
         cn_assert(bgfx_init_result);
         bgfx->set_debug(BGFX_DEBUG_TEXT);
 
@@ -180,25 +180,6 @@ b32 engine_update(engine_data *data, float delta_time) {
 
         bgfx->reset(data->window_w, state->window_h, BGFX_RESET_VSYNC);
 
-        float ref_aspect = (float)REF_H / (float)REF_W;
-        float actual_aspect = (float)data->window_h / (float)data->window_w;
-        float scale;
-        if (ref_aspect > actual_aspect)
-            scale = (float)data->window_h / (float)REF_H;
-        else
-            scale = (float)data->window_w / (float)REF_W;
-
-        float hw = data->window_w * 0.5f;
-        float hh = data->window_h * 0.5f;
-
-        float scale_x = 1.0f / hw * scale;
-        float scale_y = -1.0f / hh * scale;
-        float shift_x = (data->window_w - REF_W * scale) / data->window_w - 1.0f;
-        float shift_y = 1.0f - (data->window_h - REF_H * scale) / data->window_h;
-
-        const float mvp[] ={ scale_x, 0, 0, 0, 0,       scale_y, 0, 0,
-            0,       0, 1, 0, shift_x, shift_y, 0, 1 };
-
         state->window_w = data->window_w;
         state->window_h = data->window_h;
     }
@@ -209,11 +190,11 @@ b32 engine_update(engine_data *data, float delta_time) {
             // HACK: kinda hacky...
             if (event.type == SDL_QUIT) return false;
 
-            if (event.type == SDL_KEYDOWN || event.type == SDL_KEYUP) {
-                SDL_KeyboardEvent kb_event = event.key;
-                SDL_Keysym keysym = kb_event.keysym;
-                b32 is_keydown = event.type == SDL_KEYDOWN;
-            }
+            //if (event.type == SDL_KEYDOWN || event.type == SDL_KEYUP) {
+            //    SDL_KeyboardEvent kb_event = event.key;
+            //    SDL_Keysym keysym = kb_event.keysym;
+            //    b32 is_keydown = event.type == SDL_KEYDOWN;
+            //}
         }
     }
 
@@ -245,7 +226,7 @@ b32 engine_update(engine_data *data, float delta_time) {
             return false;
         }
 
-        bgfx->frame(false);
+        //bgfx->frame(false);
     }
 
     return true;
