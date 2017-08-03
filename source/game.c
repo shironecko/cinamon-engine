@@ -16,10 +16,61 @@ typedef struct {
     position pos;
 } character;
 
+enum {
+    MAX_STATEFUL_VARS = 64,
+    MAX_STATEFUL_VAR_NAME_LEN = 32
+};
+
+typedef struct {
+    char name[MAX_STATEFUL_VAR_NAME_LEN];
+    void *ptr;
+} stateful_var;
+
+typedef struct {
+
+    stateful_var vars[MAX_STATEFUL_VARS];
+    u32 vars_count;
+    mem_pool pool;
+} stateful_vars_table;
+
+void *add_stateful_var(stateful_vars_table *table, u32 size, char *name) {
+    cn_assert(table && size && name);
+    cn_assert(table->vars_count < MAX_STATEFUL_VARS);
+    cn_assert(strlen(name) < MAX_STATEFUL_VAR_NAME_LEN);
+
+    void *var_ptr = mem_push(&table->pool, size);
+    table->vars[table->vars_count].ptr = var_ptr;
+    stb_strncpy(table->vars[table->vars_count].name, name, MAX_STATEFUL_VAR_NAME_LEN);
+    ++table->vars_count;
+
+    return var_ptr;
+}
+
+void *get_stateful_var(stateful_vars_table *table, char *name) {
+    cn_assert(table && name);
+    for (u32 i = 0; i < table->vars_count; ++i) {
+        if (strcmp(name, table->vars[i].name) == 0) {
+            return table->vars[i].ptr;
+        }
+    }
+
+    return 0;
+}
+
+#define stateful(type, variable, initial_value) { \
+        void *ptr = get_stateful_var(&g_state->stateful_vars, #variable); \
+        if (!ptr) { \
+            ptr = add_stateful_var(&g_state->stateful_vars, sizeof(type), #variable); \
+            *((type*)ptr) = (initial_value); \
+        } \
+        variable = (type*)ptr; \
+    }
+
 typedef struct {
     //****************BASICS****************//
     b32 initialized;
     mem_pool pool;
+    stateful_vars_table stateful_vars;
 
     //****************RENDER****************//
     bgfx_program_handle_t test_program;
@@ -30,6 +81,7 @@ typedef struct {
     tile game_map[16 * 16];
 } game_state;
 
+GLOBAL game_state *g_state;
 GLOBAL mem_pool *g_scratch_pool;
 GLOBAL bgfx_api *g_bgfx;
 
@@ -58,6 +110,7 @@ LOCAL bgfx_program_handle_t load_program(const char* vs_path, const char* fs_pat
 
 void game_reset_globals(game_data *data) {
     game_state *state = get_game_state(data);
+    g_state = state;
     g_scratch_pool = &state->pool;
     g_bgfx = data->bgfx;
 }
@@ -67,6 +120,8 @@ void game_initialize(game_data *data, u32 reserved_memory_size) {
     state->pool = new_mem_pool(
         (u8*)data->memory + reserved_memory_size,
         data->memory_size - reserved_memory_size);
+    u64 stateful_vars_pool_size = 1 * Mb;
+    state->stateful_vars.pool = new_mem_pool(mem_push(&state->pool, stateful_vars_pool_size), stateful_vars_pool_size);
     game_reset_globals(data);
 
     g_bgfx->vertex_decl_begin(&state->test_vertex_decl, BGFX_RENDERER_TYPE_NOOP);
@@ -188,8 +243,13 @@ b32 game_update(game_data *data, float delta_time) {
         }
     }
 
-    g_bgfx->frame(false);
 
+    u32 *stateful_test;
+    stateful(u32, stateful_test, 0);
+    ++(*stateful_test);
+    g_bgfx->dbg_text_printf(0, 0, 0x4f, "stateful_test = %d", *stateful_test);
+
+    g_bgfx->frame(false);
     return true;
 }
 
