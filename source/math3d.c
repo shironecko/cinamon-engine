@@ -250,6 +250,18 @@ MATH_FN mat4 mul_m4(mat4 a, mat4 b) {
 	return result;
 }
 
+MATH_INLINE_FN mat4 transpose_m4(mat4 m) {
+    mat4 transposed = {0};
+    for (u32 y = 0; y < 4; ++y) {
+        for (u32 x = 0; x < 4; ++x) {
+            vec4 col = col_m4(m, y);
+            transposed.rows[y].e[x] = col.e[x];
+        }
+    }
+
+    return transposed;
+}
+
 MATH_INLINE_FN mat4 unit_m4() {
 	return (mat4){1.0f, 0, 0, 0, 0, 1.0f, 0, 0, 0, 0, 1.0f, 0, 0, 0, 0, 1.0f};
 }

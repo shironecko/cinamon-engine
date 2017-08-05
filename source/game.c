@@ -156,14 +156,8 @@ void game_initialize(game_data *data, u32 reserved_memory_size) {
 }
 
 typedef struct {
-    vec3 position;
-    union {
-        struct {
-            u8 a, r, g, b;
-        };
-
-        u32 argb;
-    };
+    float position[3];
+    u32 argb;
 } test_vertex;
 
 b32 game_update(game_data *data, float delta_time) {
@@ -178,63 +172,87 @@ b32 game_update(game_data *data, float delta_time) {
         state->initialized = true;
     }
 
-    mat4 cam = lookat_cam((vec3) { 0, 0, -1.0f }, (vec3) { -0.2f, 0.3f, 0.1f }, (vec3) { 0, 1.0f, 0 });
-    mat4 ortho = orthogonal(0.5f, data->window_w  + 0.5f, data->window_h + 0.5f, 0.5f, 0.0f, 100.0f, 0.0f, false);
-    g_bgfx->set_view_transform(0, &cam, &ortho);
-    {
-        //float ref_aspect = (float)REF_H / (float)REF_W;
-        //float actual_aspect = (float)data->window_h / (float)data->window_w;
-        //float scale;
-        //if (ref_aspect > actual_aspect)
-        //    scale = (float)data->window_h / (float)REF_H;
-        //else
-        //    scale = (float)data->window_w / (float)REF_W;
+    kmVec3 at ={ 0.0f, 0.0f,   0.0f };
+    kmVec3 eye ={ 0, 0, 500.0f };
+    kmVec3 up ={ 0, 1.0f, 0 };
 
-        //float hw = data->window_w * 0.5f;
-        //float hh = data->window_h * 0.5f;
+    kmMat4 view = {0};
+    kmMat4LookAt(&view, &eye, &at, &up);
 
-        //float scale_x = 1.0f / hw * scale;
-        //float scale_y = -1.0f / hh * scale;
-        //float shift_x = (data->window_w - REF_W * scale) / data->window_w - 1.0f;
-        //float shift_y = 1.0f - (data->window_h - REF_H * scale) / data->window_h;
-
-        //const float mvp[] ={ scale_x, 0, 0, 0, 0,       scale_y, 0, 0,
-        //    0,       0, 1, 0, shift_x, shift_y, 0, 1 };
-        //const float identity[] = {
-        //    1.0f, 0, 0, 0,
-        //    0, 1.0f, 0, 0,
-        //    0, 0, 1.0f, 0,
-        //    0, 0, 0, 1.0f
-        //};
-
-        //g_bgfx->set_view_transform(0, identity, mvp);
-    }
+    kmMat4 proj = {0};
+    //kmMat4PerspectiveProjection(&proj, 60.0f, (float)data->window_w/(float)data->window_h, 0.1f, 100.0f);
+    kmMat4OrthographicProjection(&proj, data->window_w * -0.5f, data->window_w * 0.5f, data->window_h * -0.5f, data->window_h * 0.5f, -1000.0f, 1000.0f);
+    //kmMat4OrthographicProjection(&proj, -10, 10, -10, 10, -100.0f, 100.0f);
+    kmMat4 scale = {0};
+    kmMat4Scaling(&scale, 100, 100, 100);
+    float *rotation_x, *rotation_y, *rotation_z;
+    stateful(float, rotation_x, 0);
+    stateful(float, rotation_y, 0);
+    stateful(float, rotation_z, 0);
+    *rotation_x += 1.0f * delta_time;
+    *rotation_y += 1.5f * delta_time;
+    *rotation_z += 2.0f * delta_time;
+    kmMat4 rotate = {0};
+    kmMat4RotationYawPitchRoll(&rotate, *rotation_x, *rotation_y, *rotation_z);
+    kmMat4 transform = {0};
+    kmMat4Multiply(&transform, &scale, &rotate);
+    g_bgfx->set_transform(transform.mat, 1);
+    g_bgfx->set_view_transform(0, view.mat, proj.mat);
 
     bgfx_transient_vertex_buffer_t vertex_buff = {0};
     g_bgfx->alloc_transient_vertex_buffer(&vertex_buff, 256, &state->test_vertex_decl);
     bgfx_transient_index_buffer_t index_buff = {0};
     g_bgfx->alloc_transient_index_buffer(&index_buff, 256);
 
+    test_vertex cube_vertices[] =
+    {
+        { -1.0f,  1.0f,  1.0f, 0xff000000 },
+        { 1.0f,  1.0f,  1.0f, 0xff0000ff },
+        { -1.0f, -1.0f,  1.0f, 0xff00ff00 },
+        { 1.0f, -1.0f,  1.0f, 0xff00ffff },
+        { -1.0f,  1.0f, -1.0f, 0xffff0000 },
+        { 1.0f,  1.0f, -1.0f, 0xffff00ff },
+        { -1.0f, -1.0f, -1.0f, 0xffffff00 },
+        { 1.0f, -1.0f, -1.0f, 0xffffffff },
+    };
     test_vertex *vertex = (test_vertex*)vertex_buff.data;
-    vertex[0].position = (vec3) { -1.0f, -1.0f, 0 };
-    vertex[1].position = (vec3) { 1.0f, -1.0f, 0 };
-    vertex[2].position = (vec3) { 1.0f, 1.0f, 0 };
-    vertex[3].position = (vec3) { -1.0f, 1.0f, 0 };
-    vertex[0].argb = 0xFFFF0000;
+    memcpy(vertex, cube_vertices, sizeof(cube_vertices));
+
+    /*vertex[0].position = (vec3) { -1.0f, -1.0f,     0 };
+    vertex[1].position = (vec3) {  1.0f, -1.0f,     0 };
+    vertex[2].position = (vec3) {  1.0f,  1.0f,     0 };
+    vertex[3].position = (vec3) { -1.0f,  1.0f,     0 };*/
+    /*vertex[0].argb = 0xFFFF0000;
     vertex[1].argb = 0xFF00FF00;
     vertex[2].argb = 0xFF0000FF;
-    vertex[3].argb = 0xFFFF00FF;
+    vertex[3].argb = 0xFFFF00FF;*/
 
+    uint16_t cube_indices[] =
+    {
+        0, 1, 2, // 0
+        1, 3, 2,
+        4, 6, 5, // 2
+        5, 6, 7,
+        0, 2, 4, // 4
+        4, 2, 6,
+        1, 5, 3, // 6
+        5, 7, 3,
+        0, 4, 1, // 8
+        4, 5, 1,
+        2, 3, 6, // 10
+        6, 3, 7,
+    };
     u32 *index = (u32*)index_buff.data;
-    index[0] = 0;
-    index[1] = 1;
-    index[2] = 2;
-    index[3] = 1;
-    index[4] = 3;
-    index[5] = 2;
+    memcpy(index, cube_indices, sizeof(cube_indices));
+    //index[0] = 0;
+    //index[1] = 1;
+    //index[2] = 2;
+    //index[3] = 1;
+    //index[4] = 3;
+    //index[5] = 2;
 
-    g_bgfx->set_transient_vertex_buffer(0, &vertex_buff, 0, 4);
-    g_bgfx->set_transient_index_buffer(&index_buff, 0, 6);
+    g_bgfx->set_transient_vertex_buffer(0, &vertex_buff, 0, arr_len(cube_vertices));
+    g_bgfx->set_transient_index_buffer(&index_buff, 0, arr_len(cube_indices));
 
     g_bgfx->submit(0, state->test_program, 0, false);
 

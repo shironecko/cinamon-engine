@@ -15,8 +15,12 @@
 
 #include <platform.h>
 #include <engine.h>
-#include <math3d.c>
+//#include <math3d.c>
 #include <utility.c>
+
+#pragma warning(push, 0)
+#include <kazmath/amalgamated.c>
+#pragma warning(pop)
 
 #include <stdlib.h>
 

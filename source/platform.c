@@ -27,6 +27,9 @@ LOCAL void load_bgfx_api(bgfx_api *bgfx, const char* path) {
     bgfx->bgfx_lib = SDL_LoadObject(path);
     SDL_assert(bgfx->bgfx_lib);
 
+    bgfx->bx_mtx_look_at = SDL_LoadFunction(bgfx->bgfx_lib, "bx_mtx_look_at"); SDL_assert(bgfx->bx_mtx_look_at);
+    bgfx->bx_mtx_proj = SDL_LoadFunction(bgfx->bgfx_lib, "bx_mtx_proj"); SDL_assert(bgfx->bx_mtx_proj);
+
     bgfx->set_platform_data = SDL_LoadFunction(bgfx->bgfx_lib, "bgfx_set_platform_data"); SDL_assert(bgfx->set_platform_data);
     bgfx->vertex_decl_begin = SDL_LoadFunction(bgfx->bgfx_lib, "bgfx_vertex_decl_begin"); SDL_assert(bgfx->vertex_decl_begin);
     bgfx->vertex_decl_add = SDL_LoadFunction(bgfx->bgfx_lib, "bgfx_vertex_decl_add"); SDL_assert(bgfx->vertex_decl_add);
