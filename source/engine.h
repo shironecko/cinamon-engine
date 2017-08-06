@@ -4,9 +4,6 @@
 typedef struct {
     void *bgfx_lib;
 
-    void (*bx_mtx_look_at)(float* _result, const float* _eye, const float* _at, const float* _up);
-    void (*bx_mtx_proj)(float* _result, float _fovy, float _aspect, float _near, float _far, bool _oglNdc);
-
     void (*set_platform_data)(const bgfx_platform_data_t* _data);
     void (*vertex_decl_begin)(bgfx_vertex_decl_t* _decl, bgfx_renderer_type_t _renderer);
     void (*vertex_decl_add)(bgfx_vertex_decl_t* _decl, bgfx_attrib_t _attrib, uint8_t _num, bgfx_attrib_type_t _type, bool _normalized, bool _asInt);
