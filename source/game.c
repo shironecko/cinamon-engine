@@ -157,7 +157,7 @@ void game_initialize(game_data *data, u32 reserved_memory_size) {
 
 typedef struct {
     float position[3];
-    u32 argb;
+    u32 abgr;
 } test_vertex;
 
 b32 game_update(game_data *data, float delta_time) {
@@ -172,95 +172,73 @@ b32 game_update(game_data *data, float delta_time) {
         state->initialized = true;
     }
 
-    kmVec3 at ={ 0.0f, 0.0f,   0.0f };
-    kmVec3 eye ={ 0, 0, 500.0f };
-    kmVec3 up ={ 0, 1.0f, 0 };
-
+    kmVec3 at ={ 0, 0, 0 };
+    kmVec3 eye ={ 0, 0, 1 };
+    kmVec3 up ={ 0, 1, 0 };
     kmMat4 view = {0};
     kmMat4LookAt(&view, &eye, &at, &up);
-
     kmMat4 proj = {0};
-    //kmMat4PerspectiveProjection(&proj, 60.0f, (float)data->window_w/(float)data->window_h, 0.1f, 100.0f);
-    kmMat4OrthographicProjection(&proj, data->window_w * -0.5f, data->window_w * 0.5f, data->window_h * -0.5f, data->window_h * 0.5f, -1000.0f, 1000.0f);
-    //kmMat4OrthographicProjection(&proj, -10, 10, -10, 10, -100.0f, 100.0f);
-    kmMat4 scale = {0};
-    kmMat4Scaling(&scale, 100, 100, 100);
-    float *rotation_x, *rotation_y, *rotation_z;
-    stateful(float, rotation_x, 0);
-    stateful(float, rotation_y, 0);
-    stateful(float, rotation_z, 0);
-    *rotation_x += 1.0f * delta_time;
-    *rotation_y += 1.5f * delta_time;
-    *rotation_z += 2.0f * delta_time;
-    kmMat4 rotate = {0};
-    kmMat4RotationYawPitchRoll(&rotate, *rotation_x, *rotation_y, *rotation_z);
-    kmMat4 transform = {0};
-    kmMat4Multiply(&transform, &scale, &rotate);
-    g_bgfx->set_transform(transform.mat, 1);
+    // TODO: find out why is everything stretched in Y axis and remove magic numbers from projection calculation
+    kmMat4OrthographicProjection(&proj, data->window_w * -0.5f, data->window_w * 0.5f, data->window_h * -0.602f, data->window_h * 0.602f, -1.0f, 1.0f);
     g_bgfx->set_view_transform(0, view.mat, proj.mat);
+
+    g_bgfx->set_state(BGFX_STATE_RGB_WRITE | BGFX_STATE_ALPHA_WRITE | BGFX_STATE_BLEND_ALPHA, 0);
+
+    if (false) {
+        kmMat4 scale = {0};
+        kmMat4Scaling(&scale, 100, 100, 100);
+        float *rotation_x, *rotation_y, *rotation_z;
+        stateful(float, rotation_x, 0);
+        stateful(float, rotation_y, 0);
+        stateful(float, rotation_z, 0);
+        *rotation_x += 1.0f * delta_time;
+        *rotation_y += 1.5f * delta_time;
+        *rotation_z += 2.0f * delta_time;
+        kmMat4 rotate = {0};
+        kmMat4RotationYawPitchRoll(&rotate, *rotation_x, *rotation_y, *rotation_z);
+        kmMat4 transform = {0};
+        kmMat4Multiply(&transform, &scale, &rotate);
+        g_bgfx->set_transform(transform.mat, 1);
+    } else {
+        kmMat4 scale ={ 0 };
+        kmMat4Scaling(&scale, 100, 100, 1);
+        kmMat4 rotate ={ 0 };
+        kmMat4RotationYawPitchRoll(&rotate, 0, 0, 0);
+        kmMat4 translate ={ 0 };
+        kmMat4Translation(&translate, 0, 0, 0);
+        kmMat4 temp ={ 0 };
+        kmMat4Multiply(&temp, &rotate, &scale);
+        kmMat4 transform ={ 0 };
+        kmMat4Multiply(&transform, &translate, &temp);
+        g_bgfx->set_transform(transform.mat, 1);
+    }
 
     bgfx_transient_vertex_buffer_t vertex_buff = {0};
     g_bgfx->alloc_transient_vertex_buffer(&vertex_buff, 256, &state->test_vertex_decl);
     bgfx_transient_index_buffer_t index_buff = {0};
     g_bgfx->alloc_transient_index_buffer(&index_buff, 256);
 
-    test_vertex cube_vertices[] =
+    test_vertex quad_vertices[] =
     {
-        { -1.0f,  1.0f,  1.0f, 0xff000000 },
-        { 1.0f,  1.0f,  1.0f, 0xff0000ff },
-        { -1.0f, -1.0f,  1.0f, 0xff00ff00 },
-        { 1.0f, -1.0f,  1.0f, 0xff00ffff },
-        { -1.0f,  1.0f, -1.0f, 0xffff0000 },
-        { 1.0f,  1.0f, -1.0f, 0xffff00ff },
-        { -1.0f, -1.0f, -1.0f, 0xffffff00 },
-        { 1.0f, -1.0f, -1.0f, 0xffffffff },
+        { -1, -1, 0, 0xff0000ff },
+        { 1, -1, 0, 0xff00ff00 },
+        { 1, 1, 0, 0xffff0000 },
+        { -1, 1, 0, 0xffffffff }
     };
     test_vertex *vertex = (test_vertex*)vertex_buff.data;
-    memcpy(vertex, cube_vertices, sizeof(cube_vertices));
+    memcpy(vertex, quad_vertices, sizeof(quad_vertices));
 
-    /*vertex[0].position = (vec3) { -1.0f, -1.0f,     0 };
-    vertex[1].position = (vec3) {  1.0f, -1.0f,     0 };
-    vertex[2].position = (vec3) {  1.0f,  1.0f,     0 };
-    vertex[3].position = (vec3) { -1.0f,  1.0f,     0 };*/
-    /*vertex[0].argb = 0xFFFF0000;
-    vertex[1].argb = 0xFF00FF00;
-    vertex[2].argb = 0xFF0000FF;
-    vertex[3].argb = 0xFFFF00FF;*/
-
-    uint16_t cube_indices[] =
+    uint16_t quad_indices[] =
     {
-        0, 1, 2, // 0
-        1, 3, 2,
-        4, 6, 5, // 2
-        5, 6, 7,
-        0, 2, 4, // 4
-        4, 2, 6,
-        1, 5, 3, // 6
-        5, 7, 3,
-        0, 4, 1, // 8
-        4, 5, 1,
-        2, 3, 6, // 10
-        6, 3, 7,
+        0, 1, 2,
+        0, 2, 3
     };
     u32 *index = (u32*)index_buff.data;
-    memcpy(index, cube_indices, sizeof(cube_indices));
-    //index[0] = 0;
-    //index[1] = 1;
-    //index[2] = 2;
-    //index[3] = 1;
-    //index[4] = 3;
-    //index[5] = 2;
+    memcpy(index, quad_indices, sizeof(quad_indices));
 
-    g_bgfx->set_transient_vertex_buffer(0, &vertex_buff, 0, arr_len(cube_vertices));
-    g_bgfx->set_transient_index_buffer(&index_buff, 0, arr_len(cube_indices));
-
+    g_bgfx->set_transient_vertex_buffer(0, &vertex_buff, 0, arr_len(quad_vertices));
+    g_bgfx->set_transient_index_buffer(&index_buff, 0, arr_len(quad_indices));
     g_bgfx->submit(0, state->test_program, 0, false);
-
-    for (u32 y = 0; y < 16; y++) {
-        for (u32 x = 0; x < 16; x++) {
-        }
-    }
-
 
     u32 *stateful_test;
     stateful(u32, stateful_test, 0);
