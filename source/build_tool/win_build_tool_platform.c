@@ -1,6 +1,7 @@
 #define _CRT_SECURE_NO_WARNINGS
 
-#include <stdbool.h>
+#include "..
+
 #include <stdio.h>
 #include <conio.h>
 #include <windows.h>
@@ -16,6 +17,10 @@
 #pragma warning(disable : 4024)
 #include "stb.h"
 #pragma warning(pop)
+
+#define MAKE_LIB
+#include "3rdparty/lua/src/amalgamated.c"
+#undef MAKE_LIB
 
 enum {
 	FG_RED = FOREGROUND_RED,

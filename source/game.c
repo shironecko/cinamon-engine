@@ -75,6 +75,7 @@ typedef struct {
     //****************RENDER****************//
     bgfx_program_handle_t test_program;
     bgfx_vertex_decl_t test_vertex_decl;
+    bgfx_uniform_handle_t test_texture_uniform;
 
     //****************GAME****************//
     character protagonist;
@@ -127,10 +128,13 @@ void game_initialize(game_data *data, u32 reserved_memory_size) {
     g_bgfx->vertex_decl_begin(&state->test_vertex_decl, BGFX_RENDERER_TYPE_NOOP);
     g_bgfx->vertex_decl_add(&state->test_vertex_decl, BGFX_ATTRIB_POSITION, 3, BGFX_ATTRIB_TYPE_FLOAT, false, false);
     g_bgfx->vertex_decl_add(&state->test_vertex_decl, BGFX_ATTRIB_COLOR0, 4, BGFX_ATTRIB_TYPE_UINT8, true, false);
+    //g_bgfx->vertex_decl_add(&state->test_vertex_decl, BGFX_ATTRIB_TEXCOORD0, 2, BGFX_ATTRIB_TYPE_FLOAT, false, false);
     g_bgfx->vertex_decl_end(&state->test_vertex_decl);
 
     state->test_program = load_program("./assets/shaders/vs_test.bin", "./assets/shaders/fs_test.bin");
     cn_assert(state->test_program.idx != UINT16_MAX);
+
+    state->test_texture_uniform = g_bgfx->create_uniform("s_texColor", BGFX_UNIFORM_TYPE_INT1, 1);
 
     state->protagonist.pos = (position){ 8, 8 };
     char *map =
@@ -158,6 +162,7 @@ void game_initialize(game_data *data, u32 reserved_memory_size) {
 typedef struct {
     float position[3];
     u32 abgr;
+    float uv[2];
 } test_vertex;
 
 b32 game_update(game_data *data, float delta_time) {
@@ -218,12 +223,28 @@ b32 game_update(game_data *data, float delta_time) {
     bgfx_transient_index_buffer_t index_buff = {0};
     g_bgfx->alloc_transient_index_buffer(&index_buff, 256);
 
+    bgfx_texture_handle_t* test_texture;
+    stateful(bgfx_texture_handle_t, test_texture, (bgfx_texture_handle_t){ 0xFFFF });
+    if (test_texture->idx == 0xFFFF) {
+        s32 image_w = 0, image_h = 0, image_ch = 0;
+        u8* image_data = stbi_load ("assets/textures/alex.jpg", &image_w, &image_h, &image_ch, 0);
+        cn_assert(image_data);
+
+        u32 image_size = image_w * image_h * image_ch;
+        const bgfx_memory_t* image_memory = g_bgfx->alloc(image_size);
+        memcpy(image_memory->data, image_data, image_size);
+        stbi_image_free(image_data);
+
+        *test_texture = g_bgfx->create_texture_2d((u16)image_w, (u16)image_h, false, 1, 
+            BGFX_TEXTURE_U_CLAMP | BGFX_TEXTURE_V_CLAMP | BGFX_TEXTURE_FORMAT_RGB8, BGFX_TEXTURE_MIN_POINT | BGFX_TEXTURE_MAG_POINT, image_memory);
+    }
+
     test_vertex quad_vertices[] =
     {
-        { -1, -1, 0, 0xff0000ff },
-        { 1, -1, 0, 0xff00ff00 },
-        { 1, 1, 0, 0xffff0000 },
-        { -1, 1, 0, 0xffffffff }
+        { -1, -1, 0, 0xff0000ff, 0, 0 },
+        {  1, -1, 0, 0xff00ff00, 1, 0 },
+        {  1,  1, 0, 0xffff0000, 1, 1 },
+        { -1,  1, 0, 0xffffffff, 0, 1 }
     };
     test_vertex *vertex = (test_vertex*)vertex_buff.data;
     memcpy(vertex, quad_vertices, sizeof(quad_vertices));
@@ -235,6 +256,8 @@ b32 game_update(game_data *data, float delta_time) {
     };
     u32 *index = (u32*)index_buff.data;
     memcpy(index, quad_indices, sizeof(quad_indices));
+
+    g_bgfx->set_texture(0, state->test_texture_uniform, *test_texture, UINT32_MAX);
 
     g_bgfx->set_transient_vertex_buffer(0, &vertex_buff, 0, arr_len(quad_vertices));
     g_bgfx->set_transient_index_buffer(&index_buff, 0, arr_len(quad_indices));

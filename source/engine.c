@@ -3,15 +3,8 @@
 #include <SDL.h>
 #include <SDL_syswm.h>
 
-/* ---STB lib--- */
-#define STB_DEFINE
-#define STB_NO_REGISTRY
-#pragma warning(push, 1)
-#pragma warning(disable : 4311)
-#pragma warning(disable : 4312)
-#pragma warning(disable : 4701)
-#include <stb.h>
-#pragma warning(pop)
+#define STB_WRAPPER_IMAGE
+#include "stb_wrapper.h"
 
 #include <platform.h>
 #include <engine.h>
@@ -23,15 +16,6 @@
 #pragma warning(pop)
 
 #include <stdlib.h>
-
-/* ---STB rect pack--- */
-#define STB_RECT_PACK_IMPLEMENTATION
-#include <stb_rect_pack.h>
-
-/* ---STB truetype--- */
-#define STBTT_STATIC
-#define STB_TRUETYPE_IMPLEMENTATION
-#include <stb_truetype.h>
 
 #define REF_W 1280
 #define REF_H 720

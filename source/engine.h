@@ -157,8 +157,6 @@ typedef struct {
 
 #define cn_assert SDL_assert
 
-#define arr_len(arr) (sizeof(arr) / sizeof(arr[0]))
-
 b32 engine_update(engine_data *data, float delta_time);
 
 void engine_hotload(engine_data *data);

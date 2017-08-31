@@ -55,7 +55,7 @@ if not exist .\build\bgfx.dll (
     )
 
     pushd .\build\bgfx
-    ..\bx\tools\bin\windows\genie --with-shared-lib vs2015
+    ..\bx\tools\bin\windows\genie --with-shared-lib --with-tools vs2015
     popd
 
     REM kinda hacky, but helps me to rename the bloody dll...

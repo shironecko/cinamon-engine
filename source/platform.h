@@ -27,3 +27,5 @@ typedef uintptr_t uptr;
 #define Mb (1024 * Kb)
 #define Gb (1024ULL * Mb)
 #define Tb (1024ULL * Gb)
+
+#define arr_len(arr) (sizeof(arr) / sizeof(arr[0]))
