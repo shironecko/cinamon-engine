@@ -55,15 +55,33 @@ int main(int argc, char **argv) {
 
     build_tool_lib_info build_lib = {0};
     reload_build_tool_lib("win_build_tool_lib.dll", "win_build_tool_lib_tmp.dll", &build_lib);
+    assert(build_lib.library && build_lib.get_build_commands);
+    build_commands commands = build_lib.get_build_commands();
 
 	int user_choice;
 	do {
 		SetConsoleTextAttribute(con_handle, FG_WHITE | FG_BOLD);
-        printf("{ [b]uild, [a]ndroid, [c]lear, [q]uit } $> ");
+
+        printf("{ ");
+        for (u32 i = 0; i < commands.commands_count; ++i) {
+            printf("[%c]%s ", commands.commands[i].trigger_key, commands.commands[i].description);
+        }
+        printf("} $>");
 		user_choice = _getch();
 		printf("\n");
 
-        reload_build_tool_lib("win_build_tool_lib.dll", "win_build_tool_lib_tmp.dll", &build_lib);
+        for (u32 i = 0; i < commands.commands_count; ++i) {
+            if (user_choice == commands.commands->trigger_key) {
+                b32 should_reload_build_lib = false;
+                commands.commands[i].command(&should_reload_build_lib);
+                if (should_reload_build_lib) {
+                    reload_build_tool_lib("win_build_tool_lib.dll", "win_build_tool_lib_tmp.dll", &build_lib);
+                    assert(build_lib.library && build_lib.get_build_commands);
+                    build_commands commands = build_lib.get_build_commands();
+                }
+                break;
+            }
+        }
 	} while (user_choice != 'q');
 
 	SetConsoleTextAttribute(con_handle, FG_WHITE);

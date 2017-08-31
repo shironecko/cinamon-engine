@@ -34,7 +34,7 @@ void build_game(b32* should_reload_build_lib) {
     *should_reload_build_lib = false;
     configure_msvc();
 
-    copy_directory("./source/3rdparty/bgfx", "./build/bgfx");
+    copy_directory("../source/3rdparty/bgfx", "./bgfx");
 }
 
 void configure_msvc() {
@@ -42,7 +42,7 @@ void configure_msvc() {
     if (msvc_configured)
         return;
 
-    system("../source/build_tool/configure_msvc.bat");
+    system("..\\source\\build_tool\\configure_msvc.bat");
     FILE *env_vars = fopen("env.txt", "r");
     assert(env_vars);
     {
