@@ -1,26 +1,14 @@
 #define _CRT_SECURE_NO_WARNINGS
 
-#include "..
-
 #include <stdio.h>
 #include <conio.h>
 #include <windows.h>
 #include <assert.h>
 
-#define STB_DEFINE
-#define STB_NO_REGISTRY
-#pragma warning(push, 1)
-#pragma warning(disable : 4311)
-#pragma warning(disable : 4312)
-#pragma warning(disable : 4701)
-#pragma warning(disable : 4047)
-#pragma warning(disable : 4024)
-#include "stb.h"
-#pragma warning(pop)
+#include "./stb_wrapper.h"
+#include "../platform.h"
+#include "win_build_tool_lib.h"
 
-#define MAKE_LIB
-#include "3rdparty/lua/src/amalgamated.c"
-#undef MAKE_LIB
 
 enum {
 	FG_RED = FOREGROUND_RED,
@@ -33,47 +21,40 @@ enum {
 	FG_BOLD = FOREGROUND_INTENSITY
 };
 
-void do_build(const char *build_command, HANDLE con_handle, const char **ignore_patterns,
-              int ignore_patterns_count);
-int execute_command(const char *build_command, HANDLE con_handle, const char **ignore_patterns,
-                    int ignore_patterns_count);
-char *strip_tag(char *str, bool *out_tag_stripped);
+typedef struct {
+    build_commands (*get_build_commands)();
+
+    HMODULE library;
+} build_tool_lib_info;
+
+
+LOCAL void reload_build_tool_lib(char *src_lib_path, char *temp_lib_path, build_tool_lib_info *info) {
+    OutputDebugStringA("[*] Reloading build tool lib...\n");
+    FreeLibrary(info->library);
+    *info = (build_tool_lib_info){0};
+    if (stb_copyfile(src_lib_path, temp_lib_path) != STB_TRUE) {
+        return;
+    }
+
+    info->library = LoadLibraryA(temp_lib_path);
+    info->get_build_commands = (build_commands (*)())GetProcAddress(info->library, "get_build_commands");
+
+    if (!info->library || !info->get_build_commands) {
+        // no load is better than partial load
+        if (info->library) {
+            FreeLibrary(info->library);
+        }
+        *info = (build_tool_lib_info){0};
+    }
+}
+
 void cls(HANDLE hConsole);
 
 int main(int argc, char **argv) {
-	const char *ignore_patterns[] = {
-	    "   Creating library .\\build\\game.lib and object .\\build\\game.exp\n", "platform.c\n",
-        "C:\\Program Files (x86)\\Windows Kits\\10\\include\\10.0.14393.0\\um\\processenv.h(115): warning C4028: formal parameter 1 different from declaration\n",
-        "C:\\Program Files (x86)\\Windows Kits\\10\\include\\10.0.14393.0\\um\\memoryapi.h(101): warning C4028: formal parameter 2 different from declaration\n",
-        "C:\\Program Files (x86)\\Windows Kits\\10\\include\\10.0.14393.0\\um\\memoryapi.h(139): warning C4028: formal parameter 2 different from declaration\n",
-        "C:\\Program Files (x86)\\Windows Kits\\10\\include\\10.0.14393.0\\um\\consoleapi.h(188): warning C4028: formal parameter 3 different from declaration\n",
-        "C:\\Program Files (x86)\\Windows Kits\\10\\include\\10.0.14393.0\\um\\consoleapi.h(188): warning C4028: formal parameter 4 different from declaration\n"
-	};
-
 	HANDLE con_handle = GetStdHandle(STD_OUTPUT_HANDLE);
-	CONSOLE_SCREEN_BUFFER_INFO con_info;
 
-	int conf_script_result =
-	    execute_command("..\\source\\build_scripts\\configure_msvc.bat 2>&1", con_handle, ignore_patterns,
-	                    sizeof(ignore_patterns) / sizeof(ignore_patterns[0]));
-	assert(conf_script_result == 0);
-	FILE *env_vars = fopen("env.txt", "r");
-	assert(env_vars);
-	{
-		char buffer[1024 * 10]; // because PATH can be fucking huge
-		while (fgets(buffer, sizeof(buffer), env_vars)) {
-			char *var_value = buffer;
-			do { ++var_value; } while (*var_value != '=');
-			*var_value = 0;
-			++var_value;
-
-			size_t n = strlen(var_value);
-			assert(var_value[n - 1] == '\n');
-			var_value[n - 1] = 0;
-
-			SetEnvironmentVariable(buffer, var_value);
-		}
-	}
+    build_tool_lib_info build_lib = {0};
+    reload_build_tool_lib("win_build_tool_lib.dll", "win_build_tool_lib_tmp.dll", &build_lib);
 
 	int user_choice;
 	do {
@@ -82,93 +63,11 @@ int main(int argc, char **argv) {
 		user_choice = _getch();
 		printf("\n");
 
-		switch (user_choice) {
-		case 'b': {
-			do_build("..\\source\\build_scripts\\build.bat 2>&1", con_handle, ignore_patterns,
-			         sizeof(ignore_patterns) / sizeof(ignore_patterns[0]));
-		} break;
-		case 'a': {
-			do_build("..\\source\\build_scripts\\build_android.bat 2>&1", con_handle, ignore_patterns,
-			         sizeof(ignore_patterns) / sizeof(ignore_patterns[0]));
-		} break;
-		case 'c': {
-			cls(con_handle);
-		} break;
-		}
+        reload_build_tool_lib("win_build_tool_lib.dll", "win_build_tool_lib_tmp.dll", &build_lib);
 	} while (user_choice != 'q');
 
 	SetConsoleTextAttribute(con_handle, FG_WHITE);
 	return 0;
-}
-
-void do_build(const char *build_command, HANDLE con_handle, const char **ignore_patterns,
-              int ignore_patterns_count) {
-	SetConsoleTextAttribute(con_handle, FG_PURPLE);
-	printf("[BUILD STARTED]\n");
-
-	int result = execute_command(build_command, con_handle, ignore_patterns, ignore_patterns_count);
-
-	if (result == 0) {
-		SetConsoleTextAttribute(con_handle, FG_GREEN);
-		printf("[BUILD SUCCEDED]\n");
-	} else {
-		SetConsoleTextAttribute(con_handle, FG_PURPLE);
-		printf("[BUILD FAILED]\n");
-	}
-}
-
-int execute_command(const char *build_command, HANDLE con_handle, const char **ignore_patterns,
-                    int ignore_patterns_count) {
-	FILE *build_fp = _popen(build_command, "r");
-	assert(build_fp);
-
-	char str_buff[1024];
-	while (fgets(str_buff, sizeof(str_buff), build_fp)) {
-		bool ignore_patterns_match = false;
-		for (int i = 0; i < ignore_patterns_count; ++i) {
-			if (strcmp(str_buff, ignore_patterns[i]) == 0) {
-				ignore_patterns_match = true;
-				break;
-			}
-		}
-
-		if (ignore_patterns_match) continue;
-
-		char str_buff_lc[sizeof(str_buff)];
-		strcpy(str_buff_lc, str_buff);
-		stb_tolower(str_buff_lc);
-		unsigned int color_mask;
-		if (strstr(str_buff_lc, "error"))
-			color_mask = FG_RED;
-		else if (strstr(str_buff_lc, "warning"))
-			color_mask = FG_YELLOW;
-		else
-			color_mask = FG_WHITE;
-
-		bool tag_stripped;
-		char *output_str = strip_tag(str_buff, &tag_stripped);
-		SetConsoleTextAttribute(con_handle, color_mask | (tag_stripped ? FG_BOLD : 0));
-		printf("%s", output_str);
-	}
-
-	return _pclose(build_fp);
-}
-
-char *strip_tag(char *str, bool *out_tag_stripped) {
-	char *res = str;
-	*out_tag_stripped = false;
-
-	if (*res == '[') {
-		*out_tag_stripped = true;
-
-		do { ++res; } while (*res != ']' && *res != 0);
-
-		if (*res != 0) ++res;
-
-		while (*res == ' ') ++res;
-	}
-
-	return res;
 }
 
 // lifted from https://msdn.microsoft.com/en-us/library/windows/desktop/ms682022(v=vs.85).aspx

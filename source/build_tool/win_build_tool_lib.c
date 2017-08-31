@@ -9,15 +9,11 @@
 #include <windows.h>
 #pragma warning (pop)
 
-LOCAL void build_game();
+LOCAL void build_game(b32* should_reload_build_lib);
 LOCAL void configure_msvc();
 LOCAL void copy_directory(char* source, char* destination);
 
-void first_initialization() {
-    configure_msvc();
-}
-
-LOCAL void add_build_command(build_commands* cmds, char key, char* desc, void (*command_fn)()) {
+LOCAL void add_build_command(build_commands* cmds, char key, char* desc, void (*command_fn)(b32*)) {
     assert(cmds && cmds->commands_count < MAX_BUILD_COMMANDS);
     build_command command = {0};
     command.trigger_key = key;
@@ -34,7 +30,8 @@ build_commands get_build_commands() {
     return commands;
 }
 
-void build_game() {
+void build_game(b32* should_reload_build_lib) {
+    *should_reload_build_lib = false;
     configure_msvc();
 
     copy_directory("./source/3rdparty/bgfx", "./build/bgfx");

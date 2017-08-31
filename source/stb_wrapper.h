@@ -1,10 +1,11 @@
+#ifndef _CRT_SECURE_NO_WARNINGS
+#define _CRT_SECURE_NO_WARNINGS
+#endif
+
 /* ---STB lib--- */
 #define STB_DEFINE
 #define STB_NO_REGISTRY
-#pragma warning(push, 1)
-#pragma warning(disable : 4311)
-#pragma warning(disable : 4312)
-#pragma warning(disable : 4701)
+#pragma warning(push, 0)
 #include <stb.h>
 #pragma warning(pop)
 

@@ -1,7 +1,7 @@
 typedef struct {
     char trigger_key;
     const char *description;
-    void (*command)();
+    void (*command)(b32* should_reload_build_lib);
 } build_command;
 
 #define MAX_BUILD_COMMANDS 32
@@ -11,5 +11,4 @@ typedef struct {
     u32 commands_count;
 } build_commands;
 
-void first_initialization();
 build_commands get_build_commands();
